@@ -16,6 +16,7 @@
  */
 void wire_io_init(int num_threads);
 
+struct FTW;
 #include "wire_io_gen.h"
 
 /// @}
