@@ -70,7 +70,7 @@ static void diskscan_do_scan_device(const char* dev, uint8_t* sg_majors, int num
         return;
     }
 
-    if (statbuf.st_mode & S_IFMT != S_IFCHR)
+    if ((statbuf.st_mode & S_IFMT) != S_IFCHR)
         return;
 
     int dev_major = major(statbuf.st_rdev);
