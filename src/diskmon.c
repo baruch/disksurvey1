@@ -4,6 +4,7 @@
 #include <scsi/sg.h>
 #include <errno.h>
 #include <memory.h>
+#include <assert.h>
 
 void disk_mon_wire(void* _disk)
 {
@@ -47,8 +48,13 @@ void disk_mon_wire(void* _disk)
             wire_fd_wait(&fd_state);
 
             ret = wio_read(disk->fd, &io, sizeof(io));
-            if (ret == -1 && (errno == EAGAIN || errno == EINTR))
-                continue;
+            if (ret == -1) {
+                if (errno == EAGAIN || errno == EINTR)
+                    continue;
+                wire_log(WLOG_INFO, "Device %s fd %d error reading from device errno=%d", disk->dev_name, disk->fd, errno);
+                disk_running = 0;
+                break;
+            }
 
             if (ret == 0) {
                 wire_log(WLOG_INFO, "Device %s fd %d at EOF", disk->dev_name, disk->fd);
@@ -56,14 +62,28 @@ void disk_mon_wire(void* _disk)
                 break;
             }
 
+            assert(ret == sizeof(io));
             // Got reply
-            // TODO: process reply
+            break;
+        }
+
+        // TODO: process reply
+        if (!disk_running)
+            break;
+
+        if (io.status != 0) {
+            wire_log(WLOG_INFO, "Device %s fd %d status %08x, breaking", disk->dev_name, disk->fd, io.status);
+            break;
+        }
+
+        if (io.sb_len_wr != 0) {
+            wire_log(WLOG_INFO, "Device %s fd %d sense returned, breaking", disk->dev_name, disk->fd);
             break;
         }
     }
 
     // close the disk fd and mark the entry as dead (fd == -1)
+    wire_log(WLOG_INFO, "Finished monitor of disk %s fd %d", disk->dev_name, disk->fd);
     close(disk->fd);
     disk->fd = -1;
-    wire_log(WLOG_INFO, "Finished monitor of disk %s fd %d", disk->dev_name, disk->fd);
 }
