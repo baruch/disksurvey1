@@ -31,6 +31,7 @@ void disklist_add_device(const char* dev_name)
     wire_log(WLOG_INFO, "Adding device %s", dev_name);
 
     int fd = wio_open(dev_name, O_RDWR, 0);
+    wire_log(WLOG_INFO,"Device opened %s", dev_name);
     if (fd < 0) {
         wire_log(WLOG_ERR, "Failed to open device %s errno %d", dev_name, errno);
         return;
@@ -42,4 +43,5 @@ void disklist_add_device(const char* dev_name)
     char name[128];
     snprintf(name, sizeof(name), "Monitor %s", dev_name);
     wire_run(name, disk_mon_wire, &disks[i]);
+    wire_log(WLOG_INFO, "Started monitoring device %s", dev_name);
 }
