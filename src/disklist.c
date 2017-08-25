@@ -8,7 +8,8 @@
 
 #define MAX_DISKS 256
 
-struct disk_entry disks[MAX_DISKS];
+static int num_disks;
+static struct disk_entry disks[MAX_DISKS];
 
 void disklist_init(void)
 {
@@ -22,9 +23,10 @@ void disklist_add_device(const char* dev_name)
 {
     int i;
     int empty_slot = -1;
+    int seen_disks = 0;
 
-    // Check for device existence
-    for (i = 0; i < MAX_DISKS; i++) {
+    // Check for device existence, we look for seen_disks <= num_disks to ensure we look for one empty space
+    for (i = 0; i < MAX_DISKS && seen_disks <= num_disks; i++) {
         if (disks[i].fd == -1) {
             empty_slot = i;
             continue;
