@@ -11,7 +11,7 @@ void disk_mon_wire(void* _disk)
     wire_fd_state_t fd_state;
     int disk_running = 1;
 
-    wire_log(WLOG_INFO, "Starting monitor of disk %s fd %d", disk->dev_name, disk->fd);
+    wire_log(WLOG_INFO, "Starting monitor of disk %s fd %d ptr %p", disk->dev_name, disk->fd, disk);
     wire_fd_mode_init(&fd_state, disk->fd);
 
     while (disk_running) {
@@ -20,8 +20,8 @@ void disk_mon_wire(void* _disk)
         unsigned char sense[128];
         unsigned char cmd[6];
 
-        wire_log(WLOG_DEBUG, "ping %s", disk->dev_name);
         wire_fd_wait_msec(1000);
+        wire_log(WLOG_DEBUG, "ping %s", disk->dev_name);
 
         memset(cmd, 0, sizeof(cmd)); // TUR, all zeroes
 
