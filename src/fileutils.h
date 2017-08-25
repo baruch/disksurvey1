@@ -1,5 +1,5 @@
 #ifndef DISKSURVEY_FILEUTILS_H
-#define DISKSURVEY_FILEUTILS_H0
+#define DISKSURVEY_FILEUTILS_H
 
 typedef struct file_process_state {
     int fd;

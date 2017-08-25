@@ -1,5 +1,5 @@
 #ifndef DISKSURVEY_DISKMON_H
-#define DISKSURVEY_DISKMON_H0
+#define DISKSURVEY_DISKMON_H
 
 #include "disk.h"
 
