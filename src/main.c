@@ -1,11 +1,13 @@
 #include "common.h"
 #include "diskscan.h"
+#include "disklist.h"
 
 static wire_thread_t wire_thread;
 wire_pool_t wire_pool;
 
 void disksurvey_init(void *a)
 {
+    disklist_init();
     diskscan_init();
     wire_fd_wait_msec(1000);
 }
