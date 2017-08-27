@@ -47,9 +47,34 @@ static bool disk_mon_recv_reply(disk_entry_t* disk, sg_io_hdr_t* io, wire_fd_sta
             return false;
         }
 
-        assert(ret == sizeof(io));
+        assert(ret == sizeof(*io));
         // Got reply
         break;
+    }
+
+    return true;
+}
+
+bool disk_mon_cmd(disk_entry_t* disk, wire_fd_state_t* fd_state, int dir, unsigned char* cmd, int cmd_len, unsigned char* sense, int sense_len)
+{
+    sg_io_hdr_t io;
+
+    if (!disk_mon_send_cmd(disk, &io, SG_DXFER_NONE, cmd, sizeof(cmd), sense, sizeof(sense)))
+        return false;
+
+    if (!disk_mon_recv_reply(disk, &io, fd_state))
+        return false;
+
+    // TODO: process reply, be more discernible regarding status values
+    if (io.status != 0) {
+        wire_log(WLOG_INFO, "Device %s fd %d status %08x, breaking", disk->dev_name, disk->fd, io.status);
+        return false;
+    }
+
+    if (io.sb_len_wr != 0) {
+        // TODO: Parse the sense buffer
+        wire_log(WLOG_INFO, "Device %s fd %d sense returned, breaking", disk->dev_name, disk->fd);
+        return false;
     }
 
     return true;
@@ -64,7 +89,6 @@ void disk_mon_wire(void* _disk)
     wire_fd_mode_init(&fd_state, disk->fd);
 
     while (1) {
-        sg_io_hdr_t io;
         unsigned char sense[128];
         unsigned char cmd[6];
 
@@ -72,23 +96,8 @@ void disk_mon_wire(void* _disk)
         wire_log(WLOG_DEBUG, "ping %s", disk->dev_name);
 
         memset(cmd, 0, sizeof(cmd)); // TUR, all zeroes
-
-        if (!disk_mon_send_cmd(disk, &io, SG_DXFER_NONE, cmd, sizeof(cmd), sense, sizeof(sense)))
+        if (!disk_mon_cmd(disk, &fd_state, SG_DXFER_NONE, cmd, sizeof(cmd), sense, sizeof(sense)))
             break;
-
-        if (!disk_mon_recv_reply(disk, &io, &fd_state))
-            break;
-
-        // TODO: process reply
-        if (io.status != 0) {
-            wire_log(WLOG_INFO, "Device %s fd %d status %08x, breaking", disk->dev_name, disk->fd, io.status);
-            break;
-        }
-
-        if (io.sb_len_wr != 0) {
-            wire_log(WLOG_INFO, "Device %s fd %d sense returned, breaking", disk->dev_name, disk->fd);
-            break;
-        }
     }
 
     // close the disk fd and mark the entry as dead (fd == -1)
