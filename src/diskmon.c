@@ -59,12 +59,11 @@ void disk_mon_wire(void* _disk)
 {
     disk_entry_t* disk = _disk;
     wire_fd_state_t fd_state;
-    int disk_running = 1;
 
     wire_log(WLOG_INFO, "Starting monitor of disk %s fd %d ptr %p", disk->dev_name, disk->fd, disk);
     wire_fd_mode_init(&fd_state, disk->fd);
 
-    while (disk_running) {
+    while (1) {
         sg_io_hdr_t io;
         unsigned char sense[128];
         unsigned char cmd[6];
@@ -81,9 +80,6 @@ void disk_mon_wire(void* _disk)
             break;
 
         // TODO: process reply
-        if (!disk_running)
-            break;
-
         if (io.status != 0) {
             wire_log(WLOG_INFO, "Device %s fd %d status %08x, breaking", disk->dev_name, disk->fd, io.status);
             break;
