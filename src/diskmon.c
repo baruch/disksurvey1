@@ -5,6 +5,55 @@
 #include <errno.h>
 #include <memory.h>
 #include <assert.h>
+#include <stdbool.h>
+
+static bool disk_mon_send_cmd(disk_entry_t* disk, sg_io_hdr_t* io, int dir, unsigned char* cmd, int cmd_len, unsigned char* sense, int sense_len)
+{
+    memset(io, 0, sizeof(*io));
+    io->interface_id = 'S';
+    io->dxfer_direction = dir;
+    io->cmd_len = cmd_len;
+    io->mx_sb_len = sense_len;
+    io->cmdp = cmd;
+    io->sbp = sense;
+    io->timeout = 30*1000;
+    io->flags = SG_FLAG_LUN_INHIBIT;
+
+    int ret = wio_write(disk->fd, io, sizeof(*io));
+    if (ret < sizeof(io)) {
+        wire_log(WLOG_ERR, "Error writing to device %s fd %d ret %d errno %d", disk->dev_name, disk->fd, ret, errno);
+        return false;
+    }
+    return true;
+}
+
+static bool disk_mon_recv_reply(disk_entry_t* disk, sg_io_hdr_t* io, wire_fd_state_t* fd_state)
+{
+    // Wait for reply
+    while (1) {
+        wire_fd_mode_read(fd_state);
+        wire_fd_wait(fd_state);
+
+        int ret = wio_read(disk->fd, io, sizeof(*io));
+        if (ret == -1) {
+            if (errno == EAGAIN || errno == EINTR)
+                continue;
+            wire_log(WLOG_INFO, "Device %s fd %d error reading from device errno=%d", disk->dev_name, disk->fd, errno);
+            return false;
+        }
+
+        if (ret == 0) {
+            wire_log(WLOG_INFO, "Device %s fd %d at EOF", disk->dev_name, disk->fd);
+            return false;
+        }
+
+        assert(ret == sizeof(io));
+        // Got reply
+        break;
+    }
+
+    return true;
+}
 
 void disk_mon_wire(void* _disk)
 {
@@ -16,7 +65,6 @@ void disk_mon_wire(void* _disk)
     wire_fd_mode_init(&fd_state, disk->fd);
 
     while (disk_running) {
-        int ret;
         sg_io_hdr_t io;
         unsigned char sense[128];
         unsigned char cmd[6];
@@ -26,46 +74,11 @@ void disk_mon_wire(void* _disk)
 
         memset(cmd, 0, sizeof(cmd)); // TUR, all zeroes
 
-        memset(&io, 0, sizeof(io));
-        io.interface_id = 'S';
-        io.dxfer_direction = SG_DXFER_NONE;
-        io.cmd_len = sizeof(cmd);
-        io.mx_sb_len = sizeof(sense);
-        io.cmdp = cmd;
-        io.sbp = sense;
-        io.timeout = 30*1000; // 30 seconds
-        io.flags = SG_FLAG_LUN_INHIBIT;
-
-        ret = wio_write(disk->fd, &io, sizeof(io));
-        if (ret < sizeof(io)) {
-            wire_log(WLOG_ERR, "Error writing to device %s fd %d ret %d errno %d", disk->dev_name, disk->fd, ret, errno);
+        if (!disk_mon_send_cmd(disk, &io, SG_DXFER_NONE, cmd, sizeof(cmd), sense, sizeof(sense)))
             break;
-        }
 
-        // Wait for reply
-        while (1) {
-            wire_fd_mode_read(&fd_state);
-            wire_fd_wait(&fd_state);
-
-            ret = wio_read(disk->fd, &io, sizeof(io));
-            if (ret == -1) {
-                if (errno == EAGAIN || errno == EINTR)
-                    continue;
-                wire_log(WLOG_INFO, "Device %s fd %d error reading from device errno=%d", disk->dev_name, disk->fd, errno);
-                disk_running = 0;
-                break;
-            }
-
-            if (ret == 0) {
-                wire_log(WLOG_INFO, "Device %s fd %d at EOF", disk->dev_name, disk->fd);
-                disk_running = 0;
-                break;
-            }
-
-            assert(ret == sizeof(io));
-            // Got reply
+        if (!disk_mon_recv_reply(disk, &io, &fd_state))
             break;
-        }
 
         // TODO: process reply
         if (!disk_running)
