@@ -1,12 +1,14 @@
 #include "common.h"
 #include "diskscan.h"
 #include "disklist.h"
+#include "periodic_timers.h"
 
 static wire_thread_t wire_thread;
 wire_pool_t wire_pool;
 
 void disksurvey_init(void *a)
 {
+    periodic_timers_init();
     disklist_init();
     diskscan_init();
     wire_fd_wait_msec(1000);

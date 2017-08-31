@@ -1,5 +1,6 @@
 #include "diskmon.h"
 #include "common.h"
+#include "periodic_timers.h"
 
 #include <scsicmd.h>
 
@@ -130,7 +131,7 @@ void disk_mon_wire(void* _disk)
     wire_log(WLOG_INFO, "Disk %s type %d vendor %s model %s rev %s serial %s", disk->dev_name, device_type, vendor, model, rev, serial);
 
     while (1) {
-        wire_fd_wait_msec(1000);
+        periodic_timer_wait(&timer_1sec);
         wire_log(WLOG_DEBUG, "ping %s", disk->dev_name);
 
         memset(cmd, 0, 6); // TUR, all zeroes
